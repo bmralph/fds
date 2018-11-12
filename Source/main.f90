@@ -512,7 +512,7 @@ MAIN_LOOP: DO
 
    ! Clip final time step
 
-   IF ((T+DT)>T_END) DT = MAX(T_END-T,TWO_EPSILON_EB)
+   IF ((T+DT)>T_END) DT = T_END-T+TWO_EPSILON_EB
 
    ! Determine when to dump out diagnostics to the .out file
 
@@ -3083,7 +3083,6 @@ EXCHANGE_DEVICE: IF (N_DEVC>0) THEN
       DV => DEVICE(N)
       DV%CURRENT_STATE = STATE_GLB(N)
       DV%PRIOR_STATE   = STATE_GLB(N+N_DEVC)
-      IF (DV%CURRENT_STATE .NEQV. DV%PRIOR_STATE) DV%T_CHANGE = T
    ENDDO
 
    ! Dry pipe sprinkler logic
@@ -3188,12 +3187,12 @@ DEVICE_LOOP: DO N=1,N_DEVC
 
    ! If a DEViCe changes state, save the Smokeview file strings and time of state change
 
-   NM = DV%MESH
+   IF (DV%CURRENT_STATE.NEQV.DV%PRIOR_STATE) DV%T_CHANGE = T
 
-   IF (PROCESS(NM)==MYID .AND. &
+   IF (PROCESS(DV%MESH)==MYID .AND. &
        ((DV%CURRENT_STATE.NEQV.DV%PRIOR_STATE) .OR. (ABS(T-T_BEGIN)<SPACING(T).AND..NOT.DV%CURRENT_STATE))) THEN
-      M=>MESHES(NM)
-      IF (M%N_STRINGS+2>M%N_STRINGS_MAX) CALL RE_ALLOCATE_STRINGS(NM)
+      M=>MESHES(DV%MESH)
+      IF (M%N_STRINGS+2>M%N_STRINGS_MAX) CALL RE_ALLOCATE_STRINGS(DV%MESH)
       I_STATE=0
       IF (DV%CURRENT_STATE) I_STATE=1
       M%N_STRINGS = M%N_STRINGS + 1
@@ -3342,10 +3341,12 @@ IF (T>=DEVC_CLOCK .AND. N_DEVC>0) THEN
       DEVC_CLOCK = MIN(DEVC_CLOCK + DT_DEVC, T_END)
       DO N=1,N_DEVC
          DV => DEVICE(N)
+         IF (T>DV%STATISTICS_END) CYCLE
          DV%VALUE = 0._EB
          DV%TIME_INTERVAL = 0._EB
       ENDDO
    ENDIF
+
 ENDIF
 
 ! Dump CONTROL info. No gathering required as CONTROL is updated on all meshes
